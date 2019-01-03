@@ -1,0 +1,143 @@
+---
+title: "Exercise Classe Prediction Assignment"
+author: "William MacKay"
+date: "1/2/2019"
+output: html_document
+---
+## Summary
+
+### Background and Objective
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways.
+
+### The Data
+
+The training data for this project are available here:
+<https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv>
+
+The test data are available here:
+<https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv>
+
+The data for this project come from this source: <http://groupware.les.inf.puc-rio.br/har>.
+
+
+### Strategy
+
+In order to build an accurate prediction model, I first did some minor exploratory analysis of the data. I then cleaned up missing values and isolated the relevant data for the project. I then took the training data and split further into a separate training and testing set. With the training set, I first built a prediction model using a simple decision tree and tested accuracy. The second model used a more sophisticated random forest model. Using the more accurate random forest model, I then tested the set aside testing data and printed the results.  
+
+
+## Load Libraries
+
+First order of business was to load the required libraries used in this particular analysis. I also set seed of `9999`, in order for the project to be reproducible. 
+
+```{r initialize, message=FALSE}
+
+#load packages
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(randomForest)
+
+#set seed
+set.seed(9999)
+
+```
+
+
+## Load and Clean Data
+
+The following script loads the provided training and testing data while attempting to remove missing values. It also removes columns with null values and isolates the variables that will be useful to the prediction models. 
+
+```{r load-data}
+
+# Load data
+trainingData <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", na.strings=c("NA","#DIV/0!", ""))
+testingData <- read.csv('https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv', na.strings=c("NA","#DIV/0!", ""))
+
+
+# Remove null value cols
+trainingData <- trainingData[,colSums(is.na(trainingData)) == 0]
+testingData <- testingData[,colSums(is.na(testingData)) == 0]
+
+# Isolate relevant data
+trainingData <- trainingData[,-c(1:7)]
+testingData <- testingData[,-c(1:7)]
+
+```
+
+Now we have some clean data that will be much easier to work with. 
+
+
+## Data Partitioning 
+
+The next step is to break-up our training data into a new set of training and testing data. This allows us to test our prediction models without touching the final testing data, which should only be used for the final test. To get sufficient data into two sets, will partition the data into 70% training and 30% testing. 
+
+```{r partition}
+
+# Split training data 
+randomSample <- createDataPartition(y=trainingData$classe, p=0.70, list=FALSE)
+alphaTraining <- trainingData[randomSample, ] 
+alphaTesting <- trainingData[-randomSample, ]
+dim(alphaTraining);dim(alphaTesting)
+
+
+```
+
+
+## Prediction Models
+
+### Model 1: Decision Tree
+
+We will first generate a decision tree model from the training data and run a confusion matrix to analyze the accuracy. 
+
+```{r decision-tree}
+
+# Generate decision tree from training data 
+decTree <- rpart(classe ~ ., data=alphaTraining, method="class")
+dtPrediction <- predict(decTree, alphaTesting, type = "class")
+
+# Plot decision tree
+rpart.plot(decTree, main="Classification Tree", extra=102, under=TRUE, faclen=0)
+
+# Check accuracy with testing data 
+confusionMatrix(dtPrediction, alphaTesting$classe)
+
+```
+
+
+## Model 2: Random Forest 
+
+Now we will generate a random forest and run a confusion matrix to analyze the accuracy. 
+
+```{r random-forest}
+
+# Generate random forest from training data 
+randomForest <- randomForest(classe ~ . , data=alphaTraining, method="class")
+rfPrediction <- predict(randomForest, alphaTesting, type = "class")
+
+# Check accuracy with testing data
+confusionMatrix(rfPrediction, alphaTesting$classe)
+
+```
+
+
+## Model Analysis
+
+The decision tree model produced an accuracy of *0.7142 / 95% CI : (0.7025, 0.7257)*, while the random forest model resulted in an accuracy of *0.9937 / 95% CI : (0.9913, 0.9956)*. Clearly, the random forest model is far more accurate and should be used in the final prediction. 
+
+The expected out of sample error for the random forest model is *0.0063* (0.63%). In other words, this model is expected to be highly accurate. 
+
+
+## Final Prediction
+
+Finally, let's run the random forest model using the provided testing data set. 
+
+```{r final-predict}
+
+# Run random forest using test data
+testPrediction <- predict(randomForest, testingData, type="class")
+
+# Print
+testPrediction
+
+```
